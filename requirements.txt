@@ -1,0 +1,6 @@
+Django>=6.1,<6.2
+djangorestframework>=3.16,<4
+django-cors-headers>=4.7,<5
+stripe>=12,<14
+python-dotenv>=1.1,<2
+dj-database-url>=2.3,<3
