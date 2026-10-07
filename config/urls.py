@@ -31,5 +31,5 @@ urlpatterns=[
     path('api/payments/stripe/create-checkout-session/',CreateStripeCheckoutView.as_view(),name='stripe-checkout'),
     path('api/payments/stripe/webhook/',StripeWebhookView.as_view(),name='stripe-webhook'),
 ]
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
