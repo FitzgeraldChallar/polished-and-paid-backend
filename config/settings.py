@@ -188,6 +188,31 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# ----------------------------------------------------------------------------- 
+# Session cookies
+# -----------------------------------------------------------------------------
+#
+# The storefront uses Django sessions for anonymous/guest carts.
+#
+# Local development:
+#   localhost:3000 -> localhost:8000
+#   Same-site HTTP requests can use Lax cookies.
+#
+# Production:
+#   The Next.js storefront and Django API may live on different domains.
+#   Guest-cart sessions therefore need SameSite=None + Secure.
+#
+
+if DEBUG:
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False
+else:
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_PATH = "/"
+
 
 # -----------------------------------------------------------------------------
 # CSRF
