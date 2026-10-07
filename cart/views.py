@@ -1,4 +1,5 @@
 from decimal import Decimal
+import re
 
 from django.db import transaction
 from rest_framework import serializers
@@ -8,6 +9,11 @@ from rest_framework.views import APIView
 
 from .models import Cart, CartItem
 from catalog.models import Product
+
+
+GUEST_CART_HEADER = "X-Guest-Cart"
+GUEST_CART_MAX_LENGTH = 64
+GUEST_CART_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -105,14 +111,48 @@ class CartSerializer(serializers.ModelSerializer):
         )
 
 
+def get_guest_cart_key(request):
+    """
+    Resolve the guest cart identifier supplied by the storefront.
+
+    The frontend stores this identifier in localStorage and sends
+    it through the X-Guest-Cart request header.
+
+    We deliberately do not trust arbitrary long values here because
+    this value becomes the Cart.session_key.
+    """
+    guest_cart_key = (
+        request.headers.get(GUEST_CART_HEADER)
+        or request.META.get("HTTP_X_GUEST_CART")
+        or ""
+    ).strip()
+
+    if not guest_cart_key:
+        return None
+
+    if len(guest_cart_key) > GUEST_CART_MAX_LENGTH:
+        return None
+
+    if not GUEST_CART_PATTERN.fullmatch(guest_cart_key):
+        return None
+
+    return guest_cart_key
+
+
 def get_cart(request):
     """
     Resolve the active cart.
 
-    Authenticated customers always use their persistent
-    user-owned cart.
+    Authenticated customers:
+        Always use their persistent user-owned cart.
 
-    Guests use the Django session cart.
+    Guests:
+        Use the persistent guest cart identifier supplied by
+        the storefront through X-Guest-Cart.
+
+    A Django session remains available as a backwards-compatible
+    fallback for anonymous requests that do not yet have a guest
+    cart identifier.
     """
 
     if request.user.is_authenticated:
@@ -121,8 +161,17 @@ def get_cart(request):
         )
         return cart
 
-    # Make sure an anonymous browser has a persistent
-    # Django session before resolving its cart.
+    guest_cart_key = get_guest_cart_key(request)
+
+    if guest_cart_key:
+        cart, _ = Cart.objects.get_or_create(
+            session_key=guest_cart_key,
+            user=None,
+        )
+        return cart
+
+        # Backwards-compatible fallback for older clients or requests
+        # that do not yet provide X-Guest-Cart.
     if not request.session.session_key:
         request.session.create()
 
