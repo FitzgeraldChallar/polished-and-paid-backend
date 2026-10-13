@@ -1,3 +1,4 @@
+
 import os
 from pathlib import Path
 
@@ -149,25 +150,99 @@ USE_TZ = True
 
 
 # -----------------------------------------------------------------------------
-# Static / Media
+# Static / Media Storage
 # -----------------------------------------------------------------------------
 
 STATIC_URL = "/static/"
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = "/media/"
+# R2 remains disabled locally unless explicitly enabled.
+# Set USE_R2=1 in Railway only after configuring all required variables.
+USE_R2 = os.getenv("USE_R2", "0").strip() == "1"
 
-MEDIA_ROOT = BASE_DIR / "media"
+if USE_R2:
+    R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "").strip()
+    R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "").strip()
+    R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "").strip()
+    R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
+    R2_PUBLIC_DOMAIN = os.getenv("R2_PUBLIC_DOMAIN", "").strip().strip("/")
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
+    required_r2_settings = {
+        "R2_BUCKET_NAME": R2_BUCKET_NAME,
+        "R2_ACCOUNT_ID": R2_ACCOUNT_ID,
+        "R2_ACCESS_KEY_ID": R2_ACCESS_KEY_ID,
+        "R2_SECRET_ACCESS_KEY": R2_SECRET_ACCESS_KEY,
+        "R2_PUBLIC_DOMAIN": R2_PUBLIC_DOMAIN,
+    }
+
+    missing_r2_settings = [
+        name
+        for name, value in required_r2_settings.items()
+        if not value
+    ]
+
+    if missing_r2_settings:
+        raise RuntimeError(
+            "R2 is enabled, but these environment variables are missing: "
+            + ", ".join(missing_r2_settings)
+        )
+
+    AWS_ACCESS_KEY_ID = R2_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY = R2_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME = R2_BUCKET_NAME
+    AWS_S3_ENDPOINT_URL = (
+        f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+    )
+    AWS_S3_REGION_NAME = "auto"
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_CUSTOM_DOMAIN = R2_PUBLIC_DOMAIN
+    AWS_S3_URL_PROTOCOL = "https:"
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+
+    MEDIA_URL = f"https://{R2_PUBLIC_DOMAIN}/"
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "access_key": R2_ACCESS_KEY_ID,
+                "secret_key": R2_SECRET_ACCESS_KEY,
+                "bucket_name": R2_BUCKET_NAME,
+                "endpoint_url": AWS_S3_ENDPOINT_URL,
+                "region_name": AWS_S3_REGION_NAME,
+                "signature_version": AWS_S3_SIGNATURE_VERSION,
+                "custom_domain": AWS_S3_CUSTOM_DOMAIN,
+                "url_protocol": AWS_S3_URL_PROTOCOL,
+                "default_acl": AWS_DEFAULT_ACL,
+                "querystring_auth": AWS_QUERYSTRING_AUTH,
+                "file_overwrite": AWS_S3_FILE_OVERWRITE,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": (
+                "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            ),
+        },
+    }
+
+else:
+    MEDIA_URL = "/media/"
+
+    MEDIA_ROOT = BASE_DIR / "media"
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": (
+                "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            ),
+        },
+    }
 
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -197,20 +272,11 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
     "x-guest-cart",
 ]
-# ----------------------------------------------------------------------------- 
-# Session cookies
+
+
 # -----------------------------------------------------------------------------
-#
-# The storefront uses Django sessions for anonymous/guest carts.
-#
-# Local development:
-#   localhost:3000 -> localhost:8000
-#   Same-site HTTP requests can use Lax cookies.
-#
-# Production:
-#   The Next.js storefront and Django API may live on different domains.
-#   Guest-cart sessions therefore need SameSite=None + Secure.
-#
+# Session Cookies
+# -----------------------------------------------------------------------------
 
 if DEBUG:
     SESSION_COOKIE_SAMESITE = "Lax"
@@ -226,16 +292,6 @@ SESSION_COOKIE_PATH = "/"
 # -----------------------------------------------------------------------------
 # CSRF
 # -----------------------------------------------------------------------------
-#
-# CORS and CSRF are separate Django security mechanisms.
-#
-# CORS_ALLOWED_ORIGINS allows the browser to make cross-origin API requests.
-# CSRF_TRUSTED_ORIGINS tells Django which frontend origins are trusted when
-# processing state-changing requests such as POST, PUT, PATCH and DELETE.
-#
-# Both localhost and 127.0.0.1 are included because the frontend may be opened
-# using either hostname during local development.
-#
 
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
