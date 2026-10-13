@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    AdminLoginView, AdminLogoutView, AdminMeView, dashboard,
+    AdminLoginView, AdminLogoutView, AdminMeView, AdminChangePasswordView, dashboard,
     AdminCategoryViewSet, AdminProductViewSet, AdminOrderViewSet,
     AdminCustomerViewSet, AdminPaymentViewSet, AdminInventoryViewSet,
 )
@@ -18,6 +18,7 @@ urlpatterns = [
     path('auth/login/', AdminLoginView.as_view(), name='admin-login'),
     path('auth/logout/', AdminLogoutView.as_view(), name='admin-logout'),
     path('auth/me/', AdminMeView.as_view(), name='admin-me'),
+    path('auth/change-password/', AdminChangePasswordView.as_view(), name='admin-change-password'),
     path('dashboard/', dashboard, name='admin-dashboard'),
     path('', include(router.urls)),
 ]
